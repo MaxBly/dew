@@ -47,7 +47,7 @@ Go + Echo · TypeScript + Svelte · TOML config · JSON storage · Docker Compos
 ## Git
 
 ```
-main   → github.com/xxx/dew (public)
+main   → github.com/MaxBly/dew (public)
 perso  → privé uniquement (bly-net, Matrix theme)
 ```
 
@@ -57,7 +57,7 @@ perso  → privé uniquement (bly-net, Matrix theme)
 
 ## Prochaine étape immédiate
 
-1. `go mod init github.com/xxx/dew`
+1. `go mod init github.com/MaxBly/dew`
 2. Structure dossiers (`cmd/`, `internal/`, `addons/`, `web/`)
 3. `internal/store` + `internal/config`
 4. Premier handler Echo : `GET /api/films`
