@@ -14,8 +14,9 @@
 | Seedbox | `seedbox` addon only — core = streaming + library |
 | Library | Films + series in one lib, one token = one user with their own history |
 | Player | Integrated fullscreen overlay on main page, no separate page |
-| URLs | Readable slugs: `/?play=films/mulholland-drive-2001`, `/?play=series/breaking-bad/s03e08` |
-| Multiple versions | Grouped by slug/TMDB ID, quality selector in UI |
+| URLs | Readable slugs: `/?play=films/mulholland-drive-2001-12345`, `/?play=series/breaking-bad-1396/s03e08` |
+| Slug format | `{normalized-title}-{year}-{tmdb_id}` — always includes TMDB ID to guarantee uniqueness |
+| Multiple versions | Grouped by slug, quality selector in UI — `files[]` array per entry |
 | Transcoding | `transcoding` addon, toggleable, target resolution configurable (720p/1080p/4k/source) |
 | CLI | cobra — `dew serve`, `dew token create/list`, `dew library scan` |
 | Admin | `admin` addon — web UI for config + token management |
@@ -73,14 +74,19 @@ dew/
 │       ├── default/             # main (public) — clean, Netflix-like
 │       └── ...                  # editorial, spatial, mood, timeline (future)
 │
-├── data/                        # runtime JSON
-│   ├── movies.json              # metadata + slug + grouped versions
-│   ├── series.json
-│   ├── seasons.json
+├── data/
+│   ├── movies.json              # keyed by slug
+│   ├── series.json              # keyed by slug
+│   ├── seasons.json             # keyed by series slug → season → episodes (no mediainfo)
 │   ├── tokens.json              # token, label, permissions, max_streams, expires_at
-│   ├── watch_history.json
-│   ├── token_logs.json          # rotating 7 days
-│   └── logs.json                # addon logs (if enabled)
+│   ├── watch_history.json       # keyed by token → slug → { file, position, … }
+│   ├── watchlist.json           # keyed by token → [slug, …]
+│   ├── cache/
+│   │   └── mediainfo.json       # keyed by absolute file path
+│   └── addons/                  # each addon owns its namespace
+│       ├── logs/
+│       ├── requests/
+│       └── seedbox/
 │
 ├── dew.toml
 ├── Dockerfile
