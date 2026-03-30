@@ -43,7 +43,9 @@ func (c *Client) SearchMovie(title string, year int) (media.Movie, error) {
 
 	var searchResp struct {
 		Results []struct {
-			ID int `json:"id"`
+			ID          int     `json:"id"`
+			ReleaseDate string  `json:"release_date"`
+			Popularity  float64 `json:"popularity"`
 		} `json:"results"`
 	}
 	if err := c.get("/search/movie?"+params.Encode(), &searchResp); err != nil {
@@ -53,9 +55,24 @@ func (c *Client) SearchMovie(title string, year int) (media.Movie, error) {
 		return media.Movie{}, fmt.Errorf("tmdb: no results for %q (%d)", title, year)
 	}
 
+	// Pick best match: prefer results where release year matches, then highest popularity.
+	bestID := searchResp.Results[0].ID
+	if year > 0 {
+		var bestPop float64
+		for _, r := range searchResp.Results {
+			ry := 0
+			if len(r.ReleaseDate) >= 4 {
+				fmt.Sscanf(r.ReleaseDate[:4], "%d", &ry)
+			}
+			if ry == year && r.Popularity > bestPop {
+				bestID = r.ID
+				bestPop = r.Popularity
+			}
+		}
+	}
+
 	// 2. Details (includes full genre objects)
-	id := searchResp.Results[0].ID
-	return c.MovieDetails(id)
+	return c.MovieDetails(bestID)
 }
 
 // MovieDetails fetches full metadata for a TMDB movie ID.

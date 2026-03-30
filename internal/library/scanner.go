@@ -200,33 +200,63 @@ func (s *Scanner) ScanSeries() error {
 }
 
 // resolveMovie returns a slug and Movie metadata for a given title+year.
-// Uses TMDB if available, falls back to parsed filename data.
+// TMDB retry chain (each step only runs if the previous failed):
+//  1. raw title + year
+//  2. CleanTitle(title) + year  (strips brackets, prefixes, release tags)
+//  3. CleanTitle(title) without year (handles wrong-year edge cases)
 func (s *Scanner) resolveMovie(title string, year int) (string, media.Movie) {
 	if s.tmdb != nil {
-		m, err := s.tmdb.SearchMovie(title, year)
-		if err == nil {
-			return Slug(m.Title, year, m.TMDBID), m
+		clean := CleanTitle(title)
+		attempts := []struct {
+			t string
+			y int
+		}{
+			{title, year},
+			{clean, year},
+			{clean, 0},
 		}
-		log.Printf("library: TMDB lookup failed for %q: %v", title, err)
+		for _, a := range attempts {
+			if a.t == "" {
+				continue
+			}
+			m, err := s.tmdb.SearchMovie(a.t, a.y)
+			if err == nil {
+				releaseYear := year
+				if len(m.ReleaseDate) >= 4 {
+					fmt.Sscanf(m.ReleaseDate[:4], "%d", &releaseYear)
+				}
+				return Slug(m.Title, releaseYear, m.TMDBID), m
+			}
+		}
+		log.Printf("library: TMDB lookup failed for %q (%d)", title, year)
 	}
-	return SlugNoTMDB(title, year), media.Movie{
-		Title:       title,
+	return SlugNoTMDB(CleanTitle(title), year), media.Movie{
+		Title:       CleanTitle(title),
 		ReleaseDate: fmt.Sprintf("%d-01-01", year),
 	}
 }
 
 // resolveSeries returns a slug and Series metadata for a given series name.
+// Handles folder names with trailing year (e.g. "Shameless 2011" → search "Shameless").
 func (s *Scanner) resolveSeries(name, folder string) (string, media.Series) {
+	// Strip trailing year from folder-derived names like "Shameless 2011" or "H 1998".
+	stripped, _ := StripFolderYear(name)
+
 	if s.tmdb != nil {
-		ser, err := s.tmdb.SearchSeries(name)
-		if err == nil {
-			year := 0
-			if len(ser.FirstAirDate) >= 4 {
-				fmt.Sscanf(ser.FirstAirDate[:4], "%d", &year)
+		for _, n := range []string{stripped, name} {
+			if n == "" {
+				continue
 			}
-			return Slug(ser.Name, year, ser.TMDBID), ser
+			ser, err := s.tmdb.SearchSeries(n)
+			if err == nil {
+				year := 0
+				if len(ser.FirstAirDate) >= 4 {
+					fmt.Sscanf(ser.FirstAirDate[:4], "%d", &year)
+				}
+				return Slug(ser.Name, year, ser.TMDBID), ser
+			}
 		}
-		log.Printf("library: TMDB lookup failed for series %q: %v", name, err)
+		log.Printf("library: TMDB lookup failed for series %q", name)
 	}
-	return normalizeTitle(name), media.Series{Name: name, Folder: folder}
+	return normalizeTitle(stripped), media.Series{Name: stripped, Folder: folder}
 }
