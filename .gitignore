@@ -2,3 +2,4 @@ dew.toml
 data/
 dew
 *.txt
+testdata/
