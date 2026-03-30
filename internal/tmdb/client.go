@@ -176,6 +176,126 @@ func (c *Client) SeriesDetails(id int) (media.Series, error) {
 	}, nil
 }
 
+// TVSeason fetches episode metadata for one season of a series.
+// Returns episodes ordered by episode_number.
+func (c *Client) TVSeason(seriesID, seasonNumber int) ([]media.Episode, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("tmdb: no API key configured")
+	}
+	params := url.Values{}
+	params.Set("api_key", c.apiKey)
+
+	var resp struct {
+		Episodes []struct {
+			EpisodeNumber int     `json:"episode_number"`
+			Name          string  `json:"name"`
+			Overview      string  `json:"overview"`
+			AirDate       string  `json:"air_date"`
+			Runtime       int     `json:"runtime"`
+			VoteAverage   float64 `json:"vote_average"`
+			StillPath     string  `json:"still_path"`
+		} `json:"episodes"`
+	}
+	path := fmt.Sprintf("/tv/%d/season/%d?%s", seriesID, seasonNumber, params.Encode())
+	if err := c.get(path, &resp); err != nil {
+		return nil, err
+	}
+
+	eps := make([]media.Episode, 0, len(resp.Episodes))
+	for _, e := range resp.Episodes {
+		eps = append(eps, media.Episode{
+			EpisodeNumber: e.EpisodeNumber,
+			Name:          e.Name,
+			Overview:      e.Overview,
+			AirDate:       e.AirDate,
+			Runtime:       e.Runtime,
+			VoteAverage:   e.VoteAverage,
+			StillPath:     e.StillPath,
+		})
+	}
+	return eps, nil
+}
+
+// TVEpisodeGroups returns the list of alternative episode groupings for a series.
+// Useful for series like Futurama that have different orderings per platform.
+func (c *Client) TVEpisodeGroups(seriesID int) ([]EpisodeGroup, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("tmdb: no API key configured")
+	}
+	params := url.Values{}
+	params.Set("api_key", c.apiKey)
+
+	var resp struct {
+		Results []EpisodeGroup `json:"results"`
+	}
+	if err := c.get(fmt.Sprintf("/tv/%d/episode_groups?%s", seriesID, params.Encode()), &resp); err != nil {
+		return nil, err
+	}
+	return resp.Results, nil
+}
+
+// EpisodeGroup describes an alternative episode ordering available on TMDB.
+type EpisodeGroup struct {
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Type         int    `json:"type"` // 1=original, 2=absolute, 3=dvd, 4=digital, 5=streaming, 7=regional
+	EpisodeCount int    `json:"episode_count"`
+	Description  string `json:"description"`
+}
+
+// EpisodeGroupDetail holds one group's full episode list organised by sub-group (= season equivalent).
+type EpisodeGroupDetail struct {
+	// Season maps group order number → episodes, ordered by position.
+	// order N corresponds to disk season N; position K (1-based) to disk episode K.
+	Seasons map[int][]media.Episode
+}
+
+// TVEpisodeGroupDetail fetches all episodes for a TMDB episode group.
+// Returns a map of group-order → ordered episode list, ready to match against disk SxxExx.
+func (c *Client) TVEpisodeGroupDetail(groupID string) (*EpisodeGroupDetail, error) {
+	if c.apiKey == "" {
+		return nil, fmt.Errorf("tmdb: no API key configured")
+	}
+	params := url.Values{}
+	params.Set("api_key", c.apiKey)
+
+	var resp struct {
+		Groups []struct {
+			Order    int `json:"order"`
+			Episodes []struct {
+				EpisodeNumber int     `json:"episode_number"`
+				Name          string  `json:"name"`
+				Overview      string  `json:"overview"`
+				AirDate       string  `json:"air_date"`
+				Runtime       int     `json:"runtime"`
+				VoteAverage   float64 `json:"vote_average"`
+				StillPath     string  `json:"still_path"`
+			} `json:"episodes"`
+		} `json:"groups"`
+	}
+	if err := c.get(fmt.Sprintf("/tv/episode_group/%s?%s", groupID, params.Encode()), &resp); err != nil {
+		return nil, err
+	}
+
+	detail := &EpisodeGroupDetail{Seasons: make(map[int][]media.Episode)}
+	for _, g := range resp.Groups {
+		eps := make([]media.Episode, 0, len(g.Episodes))
+		for k, e := range g.Episodes {
+			eps = append(eps, media.Episode{
+				EpisodeNumber: k + 1, // position within group (1-based) = disk episode number
+				Name:          e.Name,
+				Overview:      e.Overview,
+				AirDate:       e.AirDate,
+				Runtime:       e.Runtime,
+				VoteAverage:   e.VoteAverage,
+				StillPath:     e.StillPath,
+			})
+		}
+		detail.Seasons[g.Order] = eps
+	}
+	return detail, nil
+}
+
 func (c *Client) get(path string, out any) error {
 	resp, err := c.http.Get(baseURL + path)
 	if err != nil {

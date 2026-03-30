@@ -10,8 +10,8 @@ import (
 var (
 	// matches a 4-digit year surrounded by separators or parentheses
 	yearRe = regexp.MustCompile(`[\.\s\(]((?:19|20)\d{2})[\.\s\)]`)
-	// matches SxxExx patterns (case-insensitive)
-	episodeRe = regexp.MustCompile(`(?i)[Ss](\d{1,2})[Ee](\d{1,2})`)
+	// matches SxxExx patterns (case-insensitive), episode number up to 3 digits (e.g. Kaamelott S01E001)
+	episodeRe = regexp.MustCompile(`(?i)[Ss](\d{1,2})[Ee](\d{1,3})`)
 	// matches content in square brackets
 	bracketRe = regexp.MustCompile(`\[.*?\]`)
 	// matches content in parentheses

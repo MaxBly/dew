@@ -7,12 +7,39 @@ import (
 )
 
 type Config struct {
-	Server  ServerConfig  `toml:"server"`
-	Library LibraryConfig `toml:"library"`
-	Auth    AuthConfig    `toml:"auth"`
-	TMDB    TMDBConfig    `toml:"tmdb"`
-	Data    DataConfig    `toml:"data"`
-	Addons  AddonsConfig  `toml:"addons"`
+	Server          ServerConfig              `toml:"server"`
+	Library         LibraryConfig             `toml:"library"`
+	Auth            AuthConfig                `toml:"auth"`
+	TMDB            TMDBConfig                `toml:"tmdb"`
+	Data            DataConfig                `toml:"data"`
+	Addons          AddonsConfig              `toml:"addons"`
+	SeriesOverrides map[string]SeriesOverride `toml:"series_overrides"`
+}
+
+// SeriesOverride is keyed by the filesystem folder name (e.g. "Futurama", "H.1998").
+// It allows forcing a specific TMDB ID when auto-detection fails, and/or selecting
+// an alternative episode group ordering.
+type SeriesOverride struct {
+	// TMDBID forces a specific TMDB series ID, skipping the search step.
+	// Use this when the folder name yields a wrong TMDB match.
+	TMDBID int `toml:"tmdb_id"`
+
+	// EpisodeGroup forces enrichment via a specific TMDB episode group ID.
+	// When set, the entire series is enriched using the group's ordering:
+	// group order N → season N, episode position K → episode K.
+	EpisodeGroup string `toml:"episode_group"`
+
+	// EpisodeOverrides maps "S<N>E<N>" (disk position, e.g. "S11E11") to a specific
+	// TMDB episode reference. Applied after automatic enrichment to fix edge cases.
+	// Example: "S11E11" = { tmdb_season = 0, tmdb_episode = 14 }
+	EpisodeOverrides map[string]EpisodePatch `toml:"episode_overrides"`
+}
+
+// EpisodePatch overrides the TMDB source for a specific disk episode.
+// Key format in dew.toml: "S<season>E<episode>" (e.g. "S11E11").
+type EpisodePatch struct {
+	TMDBSeason  int `toml:"tmdb_season"`
+	TMDBEpisode int `toml:"tmdb_episode"`
 }
 
 type ServerConfig struct {
